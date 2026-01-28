@@ -1,3 +1,6 @@
 [submodule "lib/opencv"]
 	path = lib/opencv
 	url = https://github.com/opencv/opencv.git
+[submodule "lib/ncnn"]
+	path = lib/ncnn
+	url = https://github.com/Tencent/ncnn.git
