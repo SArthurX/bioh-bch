@@ -59,13 +59,12 @@ void print_bits(const vector<uint8_t>& bits) {
     cout << endl;
 }
 
-void print_float_array(const vector<float>& arr, int count = 10) {
+void print_float_array(const vector<float>& arr) {
     cout << "[";
-    for (int i = 0; i < min((int)arr.size(), count); i++) {
+    for (size_t i = 0; i < arr.size(); i++) {
         cout << fixed << setprecision(4) << arr[i];
-        if (i < count - 1) cout << ", ";
+        if (i < arr.size() - 1) cout << ", ";
     }
-    if (count < (int)arr.size()) cout << ", ...";
     cout << "]" << endl;
 }
 
@@ -339,8 +338,8 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
     vector<float> feature = arc.getFeature(aligned);
     if (verbose) {
         cout << "特徵維度: " << feature.size() << endl;
-        cout << "特徵向量 (前10): ";
-        print_float_array(feature, 10);
+        cout << "特徵向量: ";
+        print_float_array(feature);
         
         // 計算特徵向量的一些統計量
         float min_val = *min_element(feature.begin(), feature.end());
@@ -368,8 +367,8 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
     vector<float> biohash = biohash_projection(feature, matrix);
     if (verbose) {
         cout << "投影結果維度: " << biohash.size() << endl;
-        cout << "投影結果 (前10): ";
-        print_float_array(biohash, 10);
+        cout << "投影結果: ";
+        print_float_array(biohash);
     }
     
     // Step 6: 二值化
@@ -392,18 +391,18 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
     if (verbose) {
         cout << "選擇的位元數: " << BIOHASH_K << endl;
         cout << "選擇的索引: [";
-        for (int i = 0; i < min(15, BIOHASH_K); i++) {
+        for (int i = 0; i < BIOHASH_K; i++) {
             cout << tmpl.indices[i];
-            if (i < 14) cout << ", ";
+            if (i < BIOHASH_K - 1) cout << ", ";
         }
-        cout << ", ...]" << endl;
+        cout << "]" << endl;
         
         cout << "對應的投影值絕對值 (穩定度): [";
-        for (int i = 0; i < min(10, BIOHASH_K); i++) {
+        for (int i = 0; i < BIOHASH_K; i++) {
             cout << fixed << setprecision(3) << selected_magnitudes[i];
-            if (i < 9) cout << ", ";
+            if (i < BIOHASH_K - 1) cout << ", ";
         }
-        cout << ", ...]" << endl;
+        cout << "]" << endl;
         
         cout << "選擇的位元: ";
         print_bits(selected_bits);
