@@ -20,17 +20,18 @@ add_library(bch_codec STATIC
 )
 target_include_directories(bch_codec PUBLIC ${BCH_DIR})
 
-set(MAIN_SOURCES
+# Common sources (shared between executables)
+set(COMMON_SOURCES
     ${SRC_DIR}/base.cpp
     ${SRC_DIR}/mtcnn.cpp
     ${SRC_DIR}/arcface.cpp
-    ${SRC_DIR}/main.cpp
-    
-    # ${SRC_DIR}/config.cpp
 )
 
-add_executable(main ${MAIN_SOURCES})
-
+# Main executable
+add_executable(main 
+    ${COMMON_SOURCES}
+    ${SRC_DIR}/main.cpp
+)
 
 target_link_libraries(main
     ${OpenCV_LIBS}
@@ -42,4 +43,23 @@ target_link_libraries(main
 target_include_directories(main PRIVATE
     ${OpenCV_INCLUDE_DIRS}
     ${BCH_DIR}
+)
+
+# Test executable (詳細測試工具)
+add_executable(test_biohash
+    ${COMMON_SOURCES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_biohash.cpp
+)
+
+target_link_libraries(test_biohash
+    ${OpenCV_LIBS}
+    ncnn
+    bch_codec
+    m
+)
+
+target_include_directories(test_biohash PRIVATE
+    ${OpenCV_INCLUDE_DIRS}
+    ${BCH_DIR}
+    ${SRC_DIR}
 )
