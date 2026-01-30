@@ -236,19 +236,16 @@ bool bch_decode_and_verify(
 }
 
 // ==================== 模板結構 ====================
+// 注意: 種子不存入模板，驗證時使用當天日期作為種子
+// 支援日期格式: YYYYMMDD (精確到日) 或 YYYYMM (整月有效)
 struct BioHashTemplate {
-    uint32_t seed;
     vector<int> indices;      // BIOHASH_K 個索引
     vector<uint8_t> codeword; // BCH 碼字
     int ecc_bytes_len;
     
+    // 模板格式: [ECC長度:1byte][索引:64bytes][碼字:31bytes] = 96 bytes
     string to_hex() const {
         vector<uint8_t> data;
-        // 4 bytes seed
-        data.push_back((seed >> 24) & 0xFF);
-        data.push_back((seed >> 16) & 0xFF);
-        data.push_back((seed >> 8) & 0xFF);
-        data.push_back(seed & 0xFF);
         // 1 byte ecc_len
         data.push_back((uint8_t)ecc_bytes_len);
         // indices (each as 1 byte since max is 127)
@@ -266,11 +263,6 @@ struct BioHashTemplate {
         BioHashTemplate t;
         vector<uint8_t> data = hex_to_bytes(hex);
         size_t pos = 0;
-        
-        // seed
-        t.seed = ((uint32_t)data[pos] << 24) | ((uint32_t)data[pos+1] << 16) |
-                 ((uint32_t)data[pos+2] << 8) | data[pos+3];
-        pos += 4;
         
         // ecc_len
         t.ecc_bytes_len = data[pos++];
@@ -350,12 +342,13 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
              << ", max=" << max_val << ", mean=" << (sum/feature.size()) << endl;
     }
     
-    // Step 4: 生成隨機矩陣
+    // Step 4: 生成隨機矩陣 (使用當天日期作為種子)
     if (verbose) print_line("Step 4: 隨機投影矩陣");
-    tmpl.seed = get_date_seed();
-    auto matrix = generate_random_matrix(tmpl.seed);
+    uint32_t seed = get_date_seed();  // 種子不存入模板
+    auto matrix = generate_random_matrix(seed);
     if (verbose) {
-        cout << "種子: " << tmpl.seed << endl;
+        cout << "種子(今天日期): " << seed << endl;
+        cout << "注意: 種子不存入模板，驗證時須使用相同日期" << endl;
         cout << "矩陣尺寸: 128x128" << endl;
         cout << "矩陣樣本 [0][0:5]: ";
         for (int i = 0; i < 5; i++) cout << fixed << setprecision(4) << matrix[0][i] << " ";
@@ -412,23 +405,63 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
     if (verbose) print_line("Step 8: BCH 編碼");
     tmpl.codeword = bch_encode(selected_bits, tmpl.ecc_bytes_len);
     if (verbose) {
-        cout << "BCH 參數: BCH(255, " << BIOHASH_K << ", t=" << BCH_T << ")" << endl;
-        cout << "數據位元: " << BIOHASH_K << " bits (" << BIOHASH_K_BYTES << " bytes)" << endl;
-        cout << "校驗位: " << (tmpl.ecc_bytes_len * 8) << " bits (" << tmpl.ecc_bytes_len << " bytes)" << endl;
-        cout << "碼字總長: " << tmpl.codeword.size() << " bytes" << endl;
-        cout << "碼字 (hex): " << bytes_to_hex(tmpl.codeword) << endl;
+        cout << "\n┌─────────────────────────────────────────────────────┐" << endl;
+        cout << "│              BCH 編碼參數詳情                       │" << endl;
+        cout << "├─────────────────────────────────────────────────────┤" << endl;
+        cout << "│ BCH 參數: BCH(255, " << BIOHASH_K << ", t=" << BCH_T << ")" << endl;
+        cout << "│ 數據位元: " << BIOHASH_K << " bits (" << BIOHASH_K_BYTES << " bytes)" << endl;
+        cout << "│ 校驗位:   " << (tmpl.ecc_bytes_len * 8) << " bits (" << tmpl.ecc_bytes_len << " bytes)" << endl;
+        cout << "│ 碼字總長: " << tmpl.codeword.size() << " bytes" << endl;
+        cout << "└─────────────────────────────────────────────────────┘\n" << endl;
+        
+        // 詳細顯示碼字結構
+        cout << "碼字結構分析:" << endl;
+        cout << "├── 數據部分 (Data): 位元組 0-" << (BIOHASH_K_BYTES - 1) << " (" << BIOHASH_K_BYTES << " bytes)" << endl;
+        
+        vector<uint8_t> data_part(tmpl.codeword.begin(), tmpl.codeword.begin() + BIOHASH_K_BYTES);
+        cout << "│   └── Hex: " << bytes_to_hex(data_part) << endl;
+        
+        cout << "├── 校驗部分 (ECC): 位元組 " << BIOHASH_K_BYTES << "-" << (tmpl.codeword.size() - 1) << " (" << tmpl.ecc_bytes_len << " bytes)" << endl;
+        
+        vector<uint8_t> ecc_part(tmpl.codeword.begin() + BIOHASH_K_BYTES, tmpl.codeword.end());
+        cout << "│   └── Hex: " << bytes_to_hex(ecc_part) << endl;
+        
+        cout << "└── 完整碼字 (Codeword): " << tmpl.codeword.size() << " bytes" << endl;
+        cout << "    └── Hex: " << bytes_to_hex(tmpl.codeword) << endl;
     }
     
     // Step 9: 生成最終模板
     if (verbose) print_line("Step 9: 最終模板");
     string template_hex = tmpl.to_hex();
     if (verbose) {
-        cout << "模板組成:" << endl;
-        cout << "  - 種子: 4 bytes" << endl;
-        cout << "  - ECC長度: 1 byte" << endl;
-        cout << "  - 索引: " << BIOHASH_K << " bytes" << endl;
-        cout << "  - 碼字: " << tmpl.codeword.size() << " bytes" << endl;
-        cout << "  - 總計: " << (4 + 1 + BIOHASH_K + tmpl.codeword.size()) << " bytes" << endl;
+        cout << "\n┌─────────────────────────────────────────────────────┐" << endl;
+        cout << "│              模板結構 (不含種子)                    │" << endl;
+        cout << "├─────────────────────────────────────────────────────┤" << endl;
+        cout << "│ 注意: 種子不存入模板！                              │" << endl;
+        cout << "│ 驗證時須使用當天日期作為種子                        │" << endl;
+        cout << "│ 例: 種子 20260101 → 當天可解鎖                      │" << endl;
+        cout << "│     種子 202601   → 整月可解鎖                      │" << endl;
+        cout << "├─────────────────────────────────────────────────────┤" << endl;
+        cout << "│ ECC長度:   1 byte                                   │" << endl;
+        cout << "│ 索引碼:    " << BIOHASH_K << " bytes                                 │" << endl;
+        cout << "│ 碼字:      " << tmpl.codeword.size() << " bytes                                 │" << endl;
+        cout << "│ 總計:      " << (1 + BIOHASH_K + tmpl.codeword.size()) << " bytes                                 │" << endl;
+        cout << "└─────────────────────────────────────────────────────┘\n" << endl;
+        
+        // 詳細顯示模板結構
+        cout << "模板結構分析:" << endl;
+        cout << "├── ECC長度 (1 byte): 位元組 0" << endl;
+        cout << "│   └── Hex: " << setfill('0') << setw(2) << hex << tmpl.ecc_bytes_len << dec << endl;
+        
+        cout << "├── 索引碼 (Index): 位元組 1-" << BIOHASH_K << " (" << BIOHASH_K << " bytes)" << endl;
+        vector<uint8_t> index_bytes;
+        for (int idx : tmpl.indices) index_bytes.push_back((uint8_t)idx);
+        cout << "│   └── Hex: " << bytes_to_hex(index_bytes) << endl;
+        
+        cout << "└── 碼字 (Codeword): 位元組 " << (BIOHASH_K + 1) << "-" << (1 + BIOHASH_K + tmpl.codeword.size() - 1) << " (" << tmpl.codeword.size() << " bytes)" << endl;
+        cout << "    ├── 數據 (Data): " << bytes_to_hex(vector<uint8_t>(tmpl.codeword.begin(), tmpl.codeword.begin() + BIOHASH_K_BYTES)) << endl;
+        cout << "    └── 校驗 (ECC):  " << bytes_to_hex(vector<uint8_t>(tmpl.codeword.begin() + BIOHASH_K_BYTES, tmpl.codeword.end())) << endl;
+        
         cout << "\n模板 (hex):\n" << template_hex << endl;
     }
     
@@ -466,9 +499,10 @@ bool verify_image_with_template(const string& image_path, const BioHashTemplate&
     vector<float> feature = arc.getFeature(aligned);
     if (verbose) cout << "特徵提取完成" << endl;
     
-    // 使用模板中的種子生成矩陣
-    if (verbose) cout << "使用種子: " << tmpl.seed << endl;
-    auto matrix = generate_random_matrix(tmpl.seed);
+    // 使用當天日期作為種子（不從模板讀取）
+    uint32_t seed = 20260131;
+    if (verbose) cout << "使用種子 (當天日期): " << seed << endl;
+    auto matrix = generate_random_matrix(seed);
     
     // BioHash 投影
     vector<float> biohash = biohash_projection(feature, matrix);
@@ -511,7 +545,6 @@ bool verify_image_with_template(const string& image_path, const BioHashTemplate&
     return success;
 }
 
-// ==================== 主程序 ====================
 void print_usage(const char* prog) {
     cout << "用法:" << endl;
     cout << "  " << prog << " <image>              - 處理單張圖片，顯示完整流程" << endl;
@@ -556,10 +589,10 @@ int main(int argc, char* argv[]) {
         
         BioHashTemplate tmpl = BioHashTemplate::from_hex(template_hex);
         cout << "解析模板:" << endl;
-        cout << "  - 種子: " << tmpl.seed << endl;
         cout << "  - ECC長度: " << tmpl.ecc_bytes_len << " bytes" << endl;
         cout << "  - 索引數: " << tmpl.indices.size() << endl;
         cout << "  - 碼字長度: " << tmpl.codeword.size() << " bytes" << endl;
+        cout << "  - 驗證種子將使用當天日期: " << get_date_seed() << endl;
         
         bool result = verify_image_with_template(image_path, tmpl, true);
         
