@@ -1,17 +1,9 @@
 #include "arcface.h"
 
-#if NCNN_VULKAN
-#include "gpu.h"
-#endif // NCNN_VULKAN
-
 Arcface::Arcface(string model_folder)
 {
     string param_file = model_folder + "/mobilefacenet.param";
     string bin_file = model_folder + "/mobilefacenet.bin";
-
-#if NCNN_VULKAN
-    this->net.use_vulkan_compute = true;
-#endif // NCNN_VULKAN
 
     this->net.load_param(param_file.c_str());
     this->net.load_model(bin_file.c_str());

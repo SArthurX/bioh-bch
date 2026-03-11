@@ -500,7 +500,7 @@ bool verify_image_with_template(const string& image_path, const BioHashTemplate&
     if (verbose) cout << "特徵提取完成" << endl;
     
     // 使用當天日期作為種子（不從模板讀取）
-    uint32_t seed = 20260131;
+    uint32_t seed = get_date_seed();
     if (verbose) cout << "使用種子 (當天日期): " << seed << endl;
     auto matrix = generate_random_matrix(seed);
     
