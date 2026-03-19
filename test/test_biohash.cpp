@@ -115,13 +115,14 @@ vector<uint8_t> binarize(const vector<float>& biohash, float& median_out) {
 void select_reliable_bits(
     const vector<float>& biohash,
     const vector<uint8_t>& all_bits,
+    float median,
     vector<uint8_t>& selected_bits,
     vector<int>& selected_indices,
     vector<float>& selected_magnitudes
 ) {
     vector<pair<int, float>> ranked(BIOHASH_TOTAL);
     for (int i = 0; i < BIOHASH_TOTAL; i++) {
-        ranked[i] = {i, abs(biohash[i])};
+        ranked[i] = {i, abs(biohash[i] - median)};
     }
     
     sort(ranked.begin(), ranked.end(), 
@@ -380,7 +381,7 @@ BioHashTemplate process_single_image(const string& image_path, bool verbose = tr
     if (verbose) print_line("Step 7: Reliable Bit Selection");
     vector<uint8_t> selected_bits;
     vector<float> selected_magnitudes;
-    select_reliable_bits(biohash, all_bits, selected_bits, tmpl.indices, selected_magnitudes);
+    select_reliable_bits(biohash, all_bits, median, selected_bits, tmpl.indices, selected_magnitudes);
     if (verbose) {
         cout << "選擇的位元數: " << BIOHASH_K << endl;
         cout << "選擇的索引: [";
